@@ -103,6 +103,8 @@ public sealed partial class GameSelector : UserControl
 
     private void XamlRoot_Changed(XamlRoot sender, XamlRootChangedEventArgs args)
     {
+        // 窗口尺寸变化也会触发此事件，图标区的最大宽度需要跟着窗口走
+        UpdateGameIconsAreaMaxWidth();
         if (ignoreDpiChanged)
         {
             return;
@@ -276,6 +278,8 @@ public sealed partial class GameSelector : UserControl
                 return;
             }
 
+            UpdateGameIconsAreaMaxWidth();
+
             double x = Border_CurrentGameIcon.ActualWidth;
             if (GameIconsAreaVisible)
             {
@@ -283,14 +287,52 @@ public sealed partial class GameSelector : UserControl
             }
 
             // 窗口客户区逻辑宽度；右上角两个 48 DIP 按钮不参与拖动
-            double windowWidthDip = this.XamlRoot.Size.Width;
-            if (windowWidthDip <= 0)
-            {
-                windowWidthDip = AppWindow.GetFromWindowId(this.XamlRoot.ContentIslandEnvironment.AppWindowId).Size.Width
-                    / this.XamlRoot.RasterizationScale;
-            }
+            double windowWidthDip = GetWindowWidthDip();
             double dragWidth = Math.Max(0, windowWidthDip - MainWindow.CaptionButtonsWidthDip - x);
             this.XamlRoot.SetWindowDragRectangles([new Rect(x, 0, dragWidth, 48)]);
+        }
+        catch { }
+    }
+
+
+
+    /// <summary>
+    /// 窗口客户区的逻辑宽度（DIP），XamlRoot 未就绪时返回 0
+    /// </summary>
+    private double GetWindowWidthDip()
+    {
+        if (this.XamlRoot is null)
+        {
+            return 0;
+        }
+        double width = this.XamlRoot.Size.Width;
+        if (width <= 0)
+        {
+            width = AppWindow.GetFromWindowId(this.XamlRoot.ContentIslandEnvironment.AppWindowId).Size.Width
+                / this.XamlRoot.RasterizationScale;
+        }
+        return width;
+    }
+
+
+
+    /// <summary>
+    /// 限制横排游戏图标区域的最大宽度，固定的游戏过多时超出部分改为横向滚动，
+    /// 避免图标被窗口右边缘裁掉或压在标题栏按钮下面。
+    /// 最大宽度只由窗口宽度决定，不读取图标区自身尺寸，避免尺寸联动造成布局回环。
+    /// </summary>
+    private void UpdateGameIconsAreaMaxWidth()
+    {
+        try
+        {
+            double windowWidthDip = GetWindowWidthDip();
+            if (windowWidthDip <= 0)
+            {
+                return;
+            }
+            // 左侧让开当前游戏图标（Margin.Left），右侧让开自绘的最小化/关闭按钮
+            double maxWidth = windowWidthDip - Grid_GameIconsArea.Margin.Left - MainWindow.CaptionButtonsWidthDip;
+            Grid_GameIconsArea.MaxWidth = Math.Max(0, maxWidth);
         }
         catch { }
     }

@@ -2,6 +2,7 @@
 <UserControl x:Class="Starward.Features.GameSelector.GameSelector"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cwc="using:CommunityToolkit.WinUI.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:lang="using:Starward.Language"
              xmlns:local="using:Starward.Features.GameSelector"
@@ -108,7 +109,7 @@
                     <ItemsControl ItemsSource="{x:Bind GameBizDisplays}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="16" />
+                                <cwc:WrapPanel HorizontalSpacing="16" VerticalSpacing="16" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -420,7 +421,10 @@
             <ListView AllowDrop="True"
                       CanReorderItems="{x:Bind s:AppConfig.IsAdmin, Converter={StaticResource BoolReversedConverter}}"
                       ItemsSource="{x:Bind GameBizIcons}"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.HorizontalScrollMode="Enabled"
                       ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                      ScrollViewer.VerticalScrollMode="Disabled"
                       SelectionMode="Single">
                 <ListView.ItemsPanel>
                     <ItemsPanelTemplate>
