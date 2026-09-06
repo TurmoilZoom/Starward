@@ -119,9 +119,18 @@ internal class GameRecordService
     /// <returns>角色对应平台的 Client。</returns>
     private GameRecordClient GetClient(GameRecordRole role)
     {
-        return role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false
-            ? _hoyolabClient
-            : _hyperionClient;
+        return IsGlobalServerRole(role) ? _hoyolabClient : _hyperionClient;
+    }
+
+
+    /// <summary>
+    /// 角色是否属于国际服（HoYoLAB）。按角色自身判断，不读共享的 <see cref="IsHoyolab"/>。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <returns>国际服为 true。</returns>
+    private static bool IsGlobalServerRole(GameRecordRole role)
+    {
+        return role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false;
     }
 
 
@@ -427,6 +436,32 @@ internal class GameRecordService
         {
             return;
         }
+        await UpdateHyperionDeviceFpWithLockAsync(forceUpdate, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 更新国服设备指纹。调用方已确定是国服场景（国服接口、国服登录）时用它，
+    /// 不受共享的 <see cref="IsHoyolab"/> 影响——别处把那个字段置为国际服时，
+    /// <see cref="UpdateDeviceFpAsync"/> 会静默跳过，导致国服请求带着空的 / 过期的指纹。
+    /// </summary>
+    /// <param name="forceUpdate">是否忽略三天更新间隔并强制请求新的设备指纹。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    public Task EnsureHyperionDeviceFpAsync(bool forceUpdate = false, CancellationToken cancellationToken = default)
+    {
+        return UpdateHyperionDeviceFpWithLockAsync(forceUpdate, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 更新国服设备指纹；由调用方确认是国服角色，不读共享的 <see cref="IsHoyolab"/>。
+    /// 按角色发起的请求（签到、抽卡等）用它：这些请求本就按角色选 Client，
+    /// 不该为了走指纹分支去改全局字段——后台线程的改动会串到界面正在进行的账号操作上。
+    /// </summary>
+    /// <param name="forceUpdate">是否忽略三天更新间隔并强制请求新的设备指纹。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    private async Task UpdateHyperionDeviceFpWithLockAsync(bool forceUpdate, CancellationToken cancellationToken)
+    {
         await _deviceFpUpdateLock.WaitAsync(cancellationToken);
         try
         {
@@ -515,9 +550,17 @@ internal class GameRecordService
 
 
 
-    public async Task<GameRecordUser> AddRecordUserAsync(string cookie, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 用 Cookie 拉取米游社 / HoYoLAB 账号信息并入库。
+    /// </summary>
+    /// <param name="cookie">登录得到的完整 Cookie。</param>
+    /// <param name="isHoyolab">是否国际服。由调用方按本次登录的区服显式传入，不读共享的 <see cref="IsHoyolab"/>：
+    /// 那个字段会被别的界面与后台任务改动，读它可能把国服登录发到国际服接口。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>入库后的账号信息。</returns>
+    public async Task<GameRecordUser> AddRecordUserAsync(string cookie, bool isHoyolab, CancellationToken cancellationToken = default)
     {
-        var user = await ExecuteWithRequestRecoveryAsync(cookie, IsHoyolab, (client, currentCookie) => client.GetGameRecordUserAsync(currentCookie, cancellationToken), cancellationToken);
+        var user = await ExecuteWithRequestRecoveryAsync(cookie, isHoyolab, (client, currentCookie) => client.GetGameRecordUserAsync(currentCookie, cancellationToken), cancellationToken);
         using var dapper = DatabaseService.CreateConnection();
         dapper.Execute("""
             INSERT OR REPLACE INTO GameRecordUser (Uid, IsHoyolab, Nickname, Avatar, Introduce, Gender, AvatarUrl, Pendant, Cookie)
@@ -528,18 +571,30 @@ internal class GameRecordService
 
 
 
-    public List<GameRecordUser> GetRecordUsers()
+    /// <summary>
+    /// 读取指定平台下已登录的账号。
+    /// </summary>
+    /// <param name="isHoyolab">是否国际服，理由见 <see cref="AddRecordUserAsync"/>。</param>
+    /// <returns>该平台下带 Cookie 的账号。</returns>
+    public List<GameRecordUser> GetRecordUsers(bool isHoyolab)
     {
         using var dapper = DatabaseService.CreateConnection();
-        var list = dapper.Query<GameRecordUser>("SELECT * FROM GameRecordUser WHERE IsHoyolab = @IsHoyolab;", new { IsHoyolab });
+        var list = dapper.Query<GameRecordUser>("SELECT * FROM GameRecordUser WHERE IsHoyolab = @isHoyolab;", new { isHoyolab });
         return list.Where(HasCookie).ToList();
     }
 
 
 
-    public async Task<List<GameRecordRole>> AddGameRolesAsync(string cookie, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 用 Cookie 拉取该账号下全部游戏角色并入库。
+    /// </summary>
+    /// <param name="cookie">登录得到的完整 Cookie。</param>
+    /// <param name="isHoyolab">是否国际服，理由见 <see cref="AddRecordUserAsync"/>。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>入库后的角色列表。</returns>
+    public async Task<List<GameRecordRole>> AddGameRolesAsync(string cookie, bool isHoyolab, CancellationToken cancellationToken = default)
     {
-        var list = await ExecuteWithRequestRecoveryAsync(cookie, IsHoyolab, (client, currentCookie) => client.GetAllGameRolesAsync(currentCookie, cancellationToken), cancellationToken);
+        var list = await ExecuteWithRequestRecoveryAsync(cookie, isHoyolab, (client, currentCookie) => client.GetAllGameRolesAsync(currentCookie, cancellationToken), cancellationToken);
         using var dapper = DatabaseService.CreateConnection();
         using var t = dapper.BeginTransaction();
         dapper.Execute("""
@@ -639,21 +694,30 @@ internal class GameRecordService
 
 
 
-    public async Task RefreshAllGameRolesInfoAsync()
+    /// <summary>
+    /// 刷新指定平台下全部账号的角色信息。
+    /// </summary>
+    /// <param name="isHoyolab">是否国际服，理由见 <see cref="AddRecordUserAsync"/>。</param>
+    public async Task RefreshAllGameRolesInfoAsync(bool isHoyolab)
     {
-        var users = GetRecordUsers();
+        var users = GetRecordUsers(isHoyolab);
         foreach (var user in users)
         {
-            await AddRecordUserAsync(user.Cookie!);
-            await AddGameRolesAsync(user.Cookie!);
+            await AddRecordUserAsync(user.Cookie!, isHoyolab);
+            await AddGameRolesAsync(user.Cookie!, isHoyolab);
         }
     }
 
 
+    /// <summary>
+    /// 刷新单个角色所属账号的信息，平台按该角色判断。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
     public async Task RefreshGameRoleInfoAsync(GameRecordRole role)
     {
-        await AddRecordUserAsync(role.Cookie!);
-        await AddGameRolesAsync(role.Cookie!);
+        bool isHoyolab = IsGlobalServerRole(role);
+        await AddRecordUserAsync(role.Cookie!, isHoyolab);
+        await AddGameRolesAsync(role.Cookie!, isHoyolab);
     }
 
 
@@ -1640,8 +1704,7 @@ internal class GameRecordService
         {
             throw new ArgumentNullException(nameof(role));
         }
-        bool isHoyolab = role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false;
-        IsHoyolab = isHoyolab;
+        bool isHoyolab = IsGlobalServerRole(role);
         if (isHoyolab && !string.IsNullOrWhiteSpace(language))
         {
             // HoYoLAB 语言由请求头决定，统一通过 HoyolabClient.Language 生效。
@@ -1649,7 +1712,7 @@ internal class GameRecordService
         }
         if (!isHoyolab)
         {
-            await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
+            await UpdateHyperionDeviceFpWithLockAsync(false, cancellationToken);
         }
         return await ExecuteWithRequestRecoveryAsync(role, client => client.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken), cancellationToken);
     }
@@ -1666,8 +1729,7 @@ internal class GameRecordService
     public async Task<ZZZGachaWiki> GetZZZGachaWikiFromCultivateToolAsync(GameRecordRole role, string? language = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(role);
-        bool isHoyolab = role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false;
-        IsHoyolab = isHoyolab;
+        bool isHoyolab = IsGlobalServerRole(role);
         string lang = LanguageUtil.FilterLanguage(language);
         if (isHoyolab)
         {
@@ -1675,7 +1737,7 @@ internal class GameRecordService
         }
         else
         {
-            await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
+            await UpdateHyperionDeviceFpWithLockAsync(false, cancellationToken);
         }
         return await ExecuteWithRequestRecoveryAsync(role, client => client.GetZZZGachaWikiAsync(role, lang, cancellationToken), cancellationToken);
     }
@@ -1691,12 +1753,11 @@ internal class GameRecordService
     public async Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(role);
-        IsHoyolab = role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false;
-        if (IsHoyolab)
+        if (IsGlobalServerRole(role))
         {
             throw new NotSupportedException("Generating gacha authkey from HoYoLAB SToken is not supported.");
         }
-        await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
+        await UpdateHyperionDeviceFpWithLockAsync(false, cancellationToken);
         return await ExecuteWithRequestRecoveryAsync(role, client => client.GenAuthKeyAsync(role, cancellationToken), cancellationToken);
     }
 
@@ -2246,16 +2307,17 @@ internal class GameRecordService
 
 
     /// <summary>
-    /// 签到前准备：按角色区服切换 CN/OS Client，国服同步设备指纹。
+    /// 签到前准备：国服角色同步设备指纹。
+    /// 请求本身按角色选 CN/OS Client（见 <see cref="GetClient"/>），故不改共享的 <see cref="IsHoyolab"/>——
+    /// 自动签到常驻在后台跑，改那个字段会串到界面正在进行的账号操作上。
     /// </summary>
     /// <param name="role">游戏角色，用于判断 global / cn。</param>
     /// <param name="cancellationToken">取消令牌。</param>
     private async Task PrepareSignInClientAsync(GameRecordRole role, CancellationToken cancellationToken)
     {
-        IsHoyolab = role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false;
-        if (!IsHoyolab)
+        if (!IsGlobalServerRole(role))
         {
-            await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
+            await UpdateHyperionDeviceFpWithLockAsync(false, cancellationToken);
         }
     }
 

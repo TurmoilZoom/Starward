@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.Web.WebView2.Core;
 using Starward.Core;
 using Starward.Features;
+using Starward.Features.GameRecord.SignIn;
 using Starward.Frameworks;
 using System;
 using System.Linq;
@@ -33,6 +34,8 @@ public sealed partial class LoginPage : PageBase
     private readonly ILogger<LoginPage> _logger = AppConfig.GetLogger<LoginPage>();
 
     private readonly GameRecordService _gameRecordService = AppConfig.GetService<GameRecordService>();
+
+    private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
 
 
     public LoginPage()
@@ -240,8 +243,11 @@ public sealed partial class LoginPage : PageBase
             var manager = webview.CoreWebView2.CookieManager;
             var cookies = await manager.GetCookiesAsync(GetGameBizUrl());
             var cookieString = string.Join(";", cookies.Select(x => $"{x.Name}={x.Value}"));
-            var user = await _gameRecordService.AddRecordUserAsync(cookieString);
-            var roles = await _gameRecordService.AddGameRolesAsync(cookieString);
+            // 与 GetGameBizUrl 取 Cookie 的站点保持一致，不读会被后台改动的 GameRecordService.IsHoyolab
+            bool isHoyolab = !CurrentGameBiz.IsChinaServer();
+            var user = await _gameRecordService.AddRecordUserAsync(cookieString, isHoyolab);
+            var roles = await _gameRecordService.AddGameRolesAsync(cookieString, isHoyolab);
+            _autoSignInService.NotifyRolesReauthenticated(roles);
             WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(roles.FirstOrDefault(x => x.GameBiz == CurrentGameBiz.ToString())));
             TextBlock_Tip.Text = string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}")));
         }

@@ -60,7 +60,8 @@ internal static class SignInSchedule
 
 
     /// <summary>
-    /// 当天重试：若现在已过 UTC+8 23:00 则改排下一个 0 点+jitter，否则 <paramref name="utcNow"/> + <paramref name="retry"/>。
+    /// 当天重试：现在已过 UTC+8 23:00，或重试时刻已跨过 0 点，都改排下一个 0 点+jitter；
+    /// 否则 <paramref name="utcNow"/> + <paramref name="retry"/>。
     /// </summary>
     /// <param name="utcNow">调度时刻（UTC）。</param>
     /// <param name="retry">当天重试间隔。</param>
@@ -68,6 +69,13 @@ internal static class SignInSchedule
     public static DateTimeOffset GetRetryOrNextDay(DateTimeOffset utcNow, TimeSpan retry)
     {
         if (utcNow >= GetSameDayCutoff(utcNow))
+        {
+            return GetNextDailyDue(utcNow);
+        }
+        // 重试的语义是「当天再试一次」。跨过 0 点后它已经是明天那一轮，就得回到正常的 0 点+jitter：
+        // 否则 22:30 的一次 Blocked 会把全部账号第二天的签到一起推到 00:30，
+        // 单个账号（如 Cookie 失效）的失败不应该拖延其他账号的日程。
+        if (utcNow + retry >= GetNextMidnightUtcPlus8(utcNow))
         {
             return GetNextDailyDue(utcNow);
         }

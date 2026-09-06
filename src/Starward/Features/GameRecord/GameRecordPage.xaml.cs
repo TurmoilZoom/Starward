@@ -9,6 +9,7 @@ using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord.Genshin;
+using Starward.Features.GameRecord.SignIn;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
 using Starward.Controls;
@@ -34,6 +35,8 @@ public sealed partial class GameRecordPage : PageBase
     private readonly ILogger<GameRecordPage> _logger = AppConfig.GetLogger<GameRecordPage>();
 
     private readonly GameRecordService _gameRecordService = AppConfig.GetService<GameRecordService>();
+
+    private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
 
     /// <summary>
     /// 提供与设置页相同的流体导航悬停/按压动画效果（高亮条弹簧跟随、文字偏移、物理按压反馈）。
@@ -425,7 +428,8 @@ public sealed partial class GameRecordPage : PageBase
     /// </summary>
     private void OpenLoginForRecovery()
     {
-        if (_gameRecordService.IsHoyolab)
+        // 按本页当前游戏判断，不读 GameRecordService.IsHoyolab：那个字段会被后台任务改到
+        if (CurrentGameBiz.IsGlobalServer())
         {
             WebLogin();
         }
@@ -456,7 +460,7 @@ public sealed partial class GameRecordPage : PageBase
         {
             if (CurrentRole is null)
             {
-                await _gameRecordService.RefreshAllGameRolesInfoAsync();
+                await _gameRecordService.RefreshAllGameRolesInfoAsync(CurrentGameBiz.IsGlobalServer());
             }
             else
             {
@@ -562,8 +566,10 @@ public sealed partial class GameRecordPage : PageBase
                     _logger.LogInformation("Input cookie is null or white space.");
                     return;
                 }
-                var user = await _gameRecordService.AddRecordUserAsync(cookie);
-                var roles = await _gameRecordService.AddGameRolesAsync(cookie);
+                bool isHoyolab = CurrentGameBiz.IsGlobalServer();
+                var user = await _gameRecordService.AddRecordUserAsync(cookie, isHoyolab);
+                var roles = await _gameRecordService.AddGameRolesAsync(cookie, isHoyolab);
+                _autoSignInService.NotifyRolesReauthenticated(roles);
                 InAppToast.MainWindow?.Success(null, string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}"))), 5000);
                 LoadGameRoles(roles.FirstOrDefault(x => x.GameBiz == CurrentGameBiz.ToString()));
             }
@@ -593,7 +599,8 @@ public sealed partial class GameRecordPage : PageBase
     [RelayCommand]
     private async Task CaptchaLoginAsync()
     {
-        if (_gameRecordService.IsHoyolab)
+        // 同上：按本页当前游戏判断。短信验证码登录仅国服
+        if (CurrentGameBiz.IsGlobalServer())
         {
             return;
         }
@@ -608,8 +615,9 @@ public sealed partial class GameRecordPage : PageBase
             }
 
             string cookie = dialog.CookieResult;
-            var user = await _gameRecordService.AddRecordUserAsync(cookie);
-            var roles = await _gameRecordService.AddGameRolesAsync(cookie);
+            var user = await _gameRecordService.AddRecordUserAsync(cookie, isHoyolab: false);
+            var roles = await _gameRecordService.AddGameRolesAsync(cookie, isHoyolab: false);
+            _autoSignInService.NotifyRolesReauthenticated(roles);
             InAppToast.MainWindow?.Success(null, string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}"))), 5000);
             LoadGameRoles(roles.FirstOrDefault(x => x.GameBiz == CurrentGameBiz.ToString()));
         }

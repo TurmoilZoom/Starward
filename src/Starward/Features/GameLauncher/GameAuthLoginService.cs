@@ -157,7 +157,8 @@ public class GameAuthLoginService
         request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
         request.Headers.Add("x-rpc-client_type", "3");
         request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-        await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
+        // 固定国服接口：不能走会被 IsHoyolab 静默跳过的 UpdateDeviceFpAsync，否则指纹头可能是空的
+        await AppConfig.GetService<GameRecordService>().EnsureHyperionDeviceFpAsync(false, cancellationToken);
         request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
         var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -197,7 +198,8 @@ public class GameAuthLoginService
         request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
         request.Headers.Add("x-rpc-client_type", "3");
         request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-        await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
+        // 同上：固定国服接口
+        await AppConfig.GetService<GameRecordService>().EnsureHyperionDeviceFpAsync(false, cancellationToken);
         request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
         var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

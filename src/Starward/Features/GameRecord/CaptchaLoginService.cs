@@ -209,7 +209,8 @@ internal class CaptchaLoginService
     /// </summary>
     private async Task PrepareDeviceAsync(CancellationToken cancellationToken)
     {
-        await _gameRecordService.UpdateDeviceFpAsync(false, cancellationToken);
+        // 短信验证码登录仅国服：显式走国服指纹，别让共享的 IsHoyolab 把它跳过
+        await _gameRecordService.EnsureHyperionDeviceFpAsync(false, cancellationToken);
         // 与 Hyperion 共用 AppConfig 中的设备 id / fp
         if (!string.IsNullOrWhiteSpace(AppConfig.HyperionDeviceId))
         {

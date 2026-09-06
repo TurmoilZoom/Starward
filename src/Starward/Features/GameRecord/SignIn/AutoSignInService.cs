@@ -129,6 +129,36 @@ internal class AutoSignInService
 
 
     /// <summary>
+    /// 账号重新登录 / Cookie 更新后调用：清掉这些角色的失败冷却，并立即检查一轮。
+    /// Cookie 失效会把下一轮排到 2 小时后，重新登录本身改不到这个排期；
+    /// 且只叫醒不清冷却的话，10 分钟内重新登录会被冷却直接跳过，等于没叫。
+    /// </summary>
+    /// <param name="roles">Cookie 刚更新的角色。</param>
+    public void NotifyRolesReauthenticated(IEnumerable<GameRecordRole> roles)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        List<string> failureKeys = roles.Where(r => GameFeatureConfig.FromGameBiz(r.GameBiz).SupportSignIn)
+                                        .Select(GetFailureKey)
+                                        .ToList();
+        if (failureKeys.Count == 0)
+        {
+            return;
+        }
+        try
+        {
+            ClearFailureCooldowns(failureKeys);
+        }
+        catch (Exception ex)
+        {
+            // 清冷却失败也要照常叫醒：最差只是这一次仍被冷却挡住，等下一轮
+            _logger.LogWarning(ex, "Auto sign-in: clear failure cooldown failed.");
+        }
+        _logger.LogInformation("Auto sign-in re-check requested after re-login ({count} role(s)).", failureKeys.Count);
+        RequestImmediateCheck();
+    }
+
+
+    /// <summary>
     /// 系统从休眠/休眠到磁盘恢复。只唤醒等待去重算绝对时刻，未到点不跑批量。
     /// </summary>
     public void NotifySystemResumed()
@@ -348,6 +378,7 @@ internal class AutoSignInService
 
         bool sawIncomplete = false;
         bool sawBlocked = false;
+        bool sawSignedPreviousDay = false;
         foreach (GameRecordRole role in roles)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -371,10 +402,16 @@ internal class AutoSignInService
             }
             if (result is AutoSignInRoleResult.Early)
             {
+                // 已签 + 服务器没翻天：本轮确实没事可做。此时其余角色多半也已签过，不再逐个白问
                 _logger.LogInformation("Auto sign-in batch aborted early (server date not rolled).");
                 return AutoSignInRoundOutcome.Early;
             }
-            if (result is AutoSignInRoleResult.Failed or AutoSignInRoleResult.Cooldown)
+            if (result is AutoSignInRoleResult.SignedPreviousDay)
+            {
+                // 与上面相反：能签成说明昨天本来就漏着，其余角色很可能同样漏着，必须跑完再收尾
+                sawSignedPreviousDay = true;
+            }
+            else if (result is AutoSignInRoleResult.Failed or AutoSignInRoleResult.Cooldown)
             {
                 sawIncomplete = true;
             }
@@ -384,6 +421,11 @@ internal class AutoSignInService
             }
         }
 
+        // 排在最前：这一轮签掉的是上一天，必须用最短的重试接住几分钟后才开始的新一天
+        if (sawSignedPreviousDay)
+        {
+            return AutoSignInRoundOutcome.Early;
+        }
         if (sawIncomplete)
         {
             return AutoSignInRoundOutcome.Incomplete;
@@ -398,6 +440,8 @@ internal class AutoSignInService
 
     /// <summary>
     /// 单个角色：冷却 → 查询是否已签 / 是否翻天 → 未签则签到。
+    /// 请求抛出的异常在此收口：一律记录失败时间进冷却，Cookie 失效与 POST 侧的
+    /// <see cref="SignInActionResult.CookieExpired"/> 同权按 <see cref="AutoSignInRoleResult.Blocked"/> 处理。
     /// </summary>
     /// <param name="role">待签到的游戏角色。</param>
     /// <param name="expectedDate">本轮开始时本机推算的 UTC+8 日期。</param>
@@ -410,12 +454,47 @@ internal class AutoSignInService
         Func<CancellationToken, Task> pace,
         CancellationToken cancellationToken)
     {
-        string failureKey = $"auto_sign_in_last_failure_ticks_{role.GameBiz}_{role.Uid}";
+        string failureKey = GetFailureKey(role);
         if (IsInFailureCooldown(failureKey))
         {
             return AutoSignInRoleResult.Cooldown;
         }
+        try
+        {
+            return await SignInRoleRequestAsync(role, expectedDate, failureKey, pace, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // 抛异常的请求（查询接口失败、断网）以前不写失败时间，等于不进冷却，下一轮会立刻重来
+            SetSettingValue(failureKey, DateTimeOffset.UtcNow.Ticks.ToString());
+            bool loginExpired = ex is miHoYoApiException { IsLoginExpired: true };
+            _logger.LogWarning(ex, "Auto sign-in request failed (biz {biz}, uid {uid}, login expired {expired}).", role.GameBiz, role.Uid, loginExpired);
+            // Cookie 失效不会自己恢复，退到 BlockedRetry 的长间隔；断网等临时故障仍按当天重试
+            return loginExpired ? AutoSignInRoleResult.Blocked : AutoSignInRoleResult.Failed;
+        }
+    }
 
+
+    /// <summary>
+    /// 查询签到状态，未签则签到。异常不在此处理，交由 <see cref="SignInRoleCoreAsync"/> 收口。
+    /// </summary>
+    /// <param name="role">待签到的游戏角色。</param>
+    /// <param name="expectedDate">本轮开始时本机推算的 UTC+8 日期。</param>
+    /// <param name="failureKey">该角色记录失败时间的 Setting 键。</param>
+    /// <param name="pace">请求节奏控制委托，在每次 API 调用前执行。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>该角色对本轮聚合的贡献。</returns>
+    private async Task<AutoSignInRoleResult> SignInRoleRequestAsync(
+        GameRecordRole role,
+        DateOnly expectedDate,
+        string failureKey,
+        Func<CancellationToken, Task> pace,
+        CancellationToken cancellationToken)
+    {
         await pace(cancellationToken);
         var info = await _gameRecordService.GetSignInInfoAsync(role, cancellationToken);
         bool rolled = SignInSchedule.HasServerDateRolled(info.Today, expectedDate);
@@ -438,6 +517,15 @@ internal class AutoSignInService
         {
             SetSettingValue(failureKey, "0");
             _logger.LogInformation("Auto sign-in succeeded (biz {biz}, uid {uid}, result {result}).", role.GameBiz, role.Uid, result);
+            if (!rolled)
+            {
+                // 本机已过 0 点但服务器还没翻天：这一签落在上一天（该签，是它最后的机会），
+                // 但本轮绝不能算完成——否则会睡到明天 0 点，把几分钟后才开始的今天整天漏掉
+                _logger.LogInformation(
+                    "Auto sign-in signed the previous server day (biz {biz}, uid {uid}, today {today}, expected {expected}).",
+                    role.GameBiz, role.Uid, info.Today, expectedDate);
+                return AutoSignInRoleResult.SignedPreviousDay;
+            }
             return AutoSignInRoleResult.Signed;
         }
 
@@ -448,6 +536,25 @@ internal class AutoSignInService
             return AutoSignInRoleResult.Blocked;
         }
         return AutoSignInRoleResult.Failed;
+    }
+
+
+    /// <summary>
+    /// 该角色记录失败时间的 Setting 键，按 biz + uid 区分。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <returns>Setting 表键名。</returns>
+    private static string GetFailureKey(GameRecordRole role) => $"auto_sign_in_last_failure_ticks_{role.GameBiz}_{role.Uid}";
+
+
+    /// <summary>
+    /// 批量清零失败时间，让这些角色不再被冷却挡住。
+    /// </summary>
+    /// <param name="failureKeys">要清零的 Setting 键。</param>
+    private static void ClearFailureCooldowns(IReadOnlyCollection<string> failureKeys)
+    {
+        using var dapper = DatabaseService.CreateConnection();
+        dapper.Execute("INSERT OR REPLACE INTO Setting (Key, Value) VALUES (@key, '0');", failureKeys.Select(key => new { key }));
     }
 
 
@@ -505,7 +612,9 @@ internal enum AutoSignInRoundOutcome
     /// <summary>启用的角色都已签，或没有可签角色。排下一个 UTC+8 0:00 + jitter。</summary>
     Completed,
 
-    /// <summary>服务器日期尚未翻天。短重试，本轮其余角色不再请求。</summary>
+    /// <summary>
+    /// 服务器日期尚未翻天：问早了（本轮其余角色不再请求），或刚签掉的是上一天（其余角色照常跑完）。短重试。
+    /// </summary>
     Early,
 
     /// <summary>仍有角色因断网、通用失败或冷却未签成。当天 30 分钟再试。</summary>
@@ -520,9 +629,18 @@ internal enum AutoSignInRoundOutcome
 internal enum AutoSignInRoleResult
 {
     Cooldown,
+
+    /// <summary>已签，且服务器日期还没翻天：问早了。</summary>
     Early,
+
     AlreadySigned,
+
     Signed,
+
+    /// <summary>签成功，但服务器日期还没翻天，签掉的是上一天：本轮不能算完成，须短重试接住新的一天。</summary>
+    SignedPreviousDay,
+
     Failed,
+
     Blocked,
 }
