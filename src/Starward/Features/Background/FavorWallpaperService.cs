@@ -342,7 +342,7 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
-    /// 已下载到本地 bg 目录的壁纸，即随机播放的候选。
+    /// 已下载到本地 bg 目录的壁纸，即随机模式的候选。
     /// </summary>
     /// <param name="mindscape">true 取满影画静态壁纸，false 取好感动态壁纸。</param>
     public IReadOnlyList<FavorWallpaperRecord> GetDownloadedWallpapers(bool mindscape)
@@ -352,7 +352,7 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
-    /// 随机播放候选池：按两个开关合并好感 / 满影画中已下载的壁纸。
+    /// 随机模式候选池：按两个开关合并好感 / 满影画中已下载的壁纸。
     /// </summary>
     /// <param name="gameBiz">游戏业务线。</param>
     public List<FavorWallpaperRecord> GetShufflePool(GameBiz gameBiz)
@@ -406,25 +406,18 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
-    /// 软件启动后首次显示该游戏背景时随机一张壁纸。每个进程每个游戏只随机一次，
-    /// 从托盘恢复主窗口、来回切换游戏都不会再换（issue #15）。
+    /// 随机模式下换一张壁纸。调用点即「重新看到背景」的时机：软件启动、切换游戏、从托盘打开主窗口
+    /// （issue #15）。未开启随机模式、非绝区零、已切回官方背景时原样返回，不产生任何副作用。
     /// </summary>
     /// <param name="gameBiz">游戏业务线。</param>
     /// <returns>是否真的换了背景。</returns>
-    public bool TryShuffleOnStartup(GameBiz gameBiz)
+    public bool TryShuffleWallpaper(GameBiz gameBiz)
     {
         try
         {
             if (!IsSupported(gameBiz))
             {
                 return false;
-            }
-            lock (_shuffledBizs)
-            {
-                if (!_shuffledBizs.Add(gameBiz))
-                {
-                    return false;
-                }
             }
             // 用户已经切回官方背景，不越俎代庖把自定义背景重新打开。
             if (!AppConfig.GetEnableCustomBg(gameBiz))
@@ -436,14 +429,10 @@ internal partial class FavorWallpaperService
         catch (Exception ex)
         {
             // 随机失败不能影响背景初始化。
-            _logger.LogWarning(ex, "Shuffle wallpaper on startup failed for {GameBiz}", gameBiz);
+            _logger.LogWarning(ex, "Shuffle wallpaper failed for {GameBiz}", gameBiz);
             return false;
         }
     }
-
-
-    /// <summary>本进程内已随机过背景的游戏。</summary>
-    private static readonly HashSet<GameBiz> _shuffledBizs = [];
 
 
     /// <summary>

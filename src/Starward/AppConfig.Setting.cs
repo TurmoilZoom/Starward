@@ -638,7 +638,8 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 好感壁纸随机播放：软件启动后首次显示该游戏背景时，从已下载的好感壁纸中随机挑一张。
+    /// 好感壁纸随机模式：每次重新看到该游戏背景时（启动软件、切换游戏、从系统托盘打开主窗口），
+    /// 从已下载的好感壁纸中随机挑一张。
     /// </summary>
     public static bool GetFavorWallpaperShuffle(GameBiz biz)
     {
@@ -647,7 +648,7 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 设置好感壁纸随机播放开关。
+    /// 设置好感壁纸随机模式开关。
     /// </summary>
     public static void SetFavorWallpaperShuffle(GameBiz biz, bool value)
     {
@@ -656,7 +657,7 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 满影画壁纸随机播放：与好感壁纸互相独立，两者都开启时在两类已下载壁纸中一起随机。
+    /// 满影画壁纸随机模式：与好感壁纸互相独立，两者都开启时在两类已下载壁纸中一起随机。
     /// </summary>
     public static bool GetMindscapeWallpaperShuffle(GameBiz biz)
     {
@@ -665,7 +666,7 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 设置满影画壁纸随机播放开关。
+    /// 设置满影画壁纸随机模式开关。
     /// </summary>
     public static void SetMindscapeWallpaperShuffle(GameBiz biz, bool value)
     {

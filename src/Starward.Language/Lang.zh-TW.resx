@@ -3749,11 +3749,11 @@
   <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
     <value>滿影畫壁紙</value>
   </data>
-  <data name="FavorWallpaper_ShuffleOnStartup" xml:space="preserve">
-    <value>隨機播放</value>
+  <data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
+    <value>隨機模式</value>
   </data>
   <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
-    <value>請先下載壁紙，再開啟隨機播放。</value>
+    <value>請先下載壁紙，再開啟隨機模式。</value>
   </data>
   <data name="SettingPage_StartAtLogin" xml:space="preserve">
     <value>開機時自動啟動</value>

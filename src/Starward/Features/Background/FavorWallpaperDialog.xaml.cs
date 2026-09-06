@@ -126,7 +126,7 @@ public sealed partial class FavorWallpaperDialog : ContentDialog
 
 
     /// <summary>
-    /// 当前模式（好感 / 满影画）是否已开启随机播放。两者互相独立，都开启时在两类壁纸中一起随机。
+    /// 当前模式（好感 / 满影画）是否已开启随机模式。两者互相独立，都开启时在两类壁纸中一起随机。
     /// </summary>
     private bool IsShuffleEnabled => IsMindscapeMode
         ? AppConfig.GetMindscapeWallpaperShuffle(CurrentGameBiz)
@@ -155,7 +155,8 @@ public sealed partial class FavorWallpaperDialog : ContentDialog
 
 
     /// <summary>
-    /// 开关随机播放。只写设置，不当场换背景——随机发生在下次启动软件时（见 <see cref="FavorWallpaperService.TryShuffleOnStartup"/>）。
+    /// 开关随机模式。只写设置，不当场换背景——随机发生在下次「重新看到背景」时：
+    /// 启动软件、切换游戏、从系统托盘打开主窗口（见 <see cref="FavorWallpaperService.TryShuffleWallpaper"/>）。
     /// </summary>
     private void ToggleSwitch_Shuffle_Toggled(object sender, RoutedEventArgs e)
     {

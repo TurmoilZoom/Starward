@@ -3808,11 +3808,11 @@ Repository:</value>
   <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
     <value>Mindscape Wallpapers</value>
   </data>
-  <data name="FavorWallpaper_ShuffleOnStartup" xml:space="preserve">
-    <value>Shuffle</value>
+  <data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
+    <value>Shuffle mode</value>
   </data>
   <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
-    <value>Download some wallpapers first, then turn on shuffle.</value>
+    <value>Download some wallpapers first, then turn on shuffle mode.</value>
   </data>
   <data name="SettingPage_StartAtLogin" xml:space="preserve">
     <value>Start at login</value>

@@ -282,6 +282,7 @@ public sealed partial class MainWindow : WindowEx
 
     /// <summary>
     /// 显示主窗口；若当前尺寸偏离默认 1200×676（按 UI 缩放），则重新居中。
+    /// 从系统托盘恢复时额外广播 <see cref="MainWindowShownMessage"/>。
     /// </summary>
     public override void Show()
     {
@@ -291,6 +292,7 @@ public sealed partial class MainWindow : WindowEx
             CenterInScreen(1200, 676);
         }
         base.Show();
+        NotifyShownFromHidden();
     }
 
 
@@ -303,6 +305,33 @@ public sealed partial class MainWindow : WindowEx
         CenterInScreen(1200, 676);
         User32.SetCursorPos(AppWindow.Position.X + AppWindow.Size.Width / 2, AppWindow.Position.Y + AppWindow.Size.Height / 2);
         base.Show();
+        NotifyShownFromHidden();
+    }
+
+
+
+    /// <summary>
+    /// 是否已 <see cref="Hide"/> 到系统托盘。
+    /// <para>
+    /// 不能改用窗口可见性判断：<see cref="App.EnsureMainWindow"/> 先 Activate 后 Show，而 Activate
+    /// 本身就会把隐藏的窗口重新显示出来，轮到 Show 时窗口早已可见，「从托盘恢复」永远判不出来。
+    /// 最小化不会置位（只有 <see cref="Hide"/> 会），所以最小化恢复不算重新打开主界面。
+    /// </para>
+    /// </summary>
+    private bool _hiddenToTray;
+
+
+    /// <summary>
+    /// 主窗口从隐藏状态（系统托盘）重新显示时广播 <see cref="MainWindowShownMessage"/>，
+    /// 把「重新打开主界面」与普通窗口激活区分开（随机模式据此换一张背景壁纸）。
+    /// </summary>
+    private void NotifyShownFromHidden()
+    {
+        if (_hiddenToTray)
+        {
+            _hiddenToTray = false;
+            WeakReferenceMessenger.Default.Send(new MainWindowShownMessage());
+        }
     }
 
 
@@ -455,6 +484,7 @@ public sealed partial class MainWindow : WindowEx
     /// </summary>
     public override void Hide()
     {
+        _hiddenToTray = true;
         base.Hide();
         WeakReferenceMessenger.Default.Send(new MainWindowStateChangedMessage { Hide = true, CurrentTime = DateTimeOffset.Now });
         GC.Collect();

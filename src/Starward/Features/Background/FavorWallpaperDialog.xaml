@@ -37,7 +37,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 标题行：标题、模式切换、随机播放聚成左侧一簇（都是这个画廊的控制项），右侧只留关闭按钮。 -->
+        <!-- 标题行：标题、模式切换、随机模式聚成左侧一簇（都是这个画廊的控制项），右侧只留关闭按钮。 -->
         <!-- 左右各再缩 16：GridView 居中留下的 12 + 卡片自身 4 的外边距，这样标题正好对齐首列卡片的可见边。 -->
         <Grid Height="32"
               Margin="16,0,16,8"
@@ -73,15 +73,15 @@
                           IsTextScaleFactorEnabled="False" />
             </Button>
 
-            <!-- 随机播放开关：只写设置，下次启动软件时才随机。IsOn 由 code-behind 同步，不用 TwoWay 绑定，避免加载与切换模式时误触发 Toggled。 -->
+            <!-- 随机模式开关：只写设置，下次「重新看到背景」（启动 / 切换游戏 / 从托盘打开主窗口）时才随机。IsOn 由 code-behind 同步，不用 TwoWay 绑定，避免加载与切换模式时误触发 Toggled。 -->
             <!-- 再加 8 与模式切换按钮拉开到 16，两组控件不粘连。 -->
             <ToggleSwitch x:Name="ToggleSwitch_Shuffle"
                           Grid.Column="2"
                           MinWidth="0"
                           Margin="8,0,0,0"
                           VerticalAlignment="Center"
-                          OffContent="{x:Bind lang:Lang.FavorWallpaper_ShuffleOnStartup}"
-                          OnContent="{x:Bind lang:Lang.FavorWallpaper_ShuffleOnStartup}"
+                          OffContent="{x:Bind lang:Lang.FavorWallpaper_ShuffleMode}"
+                          OnContent="{x:Bind lang:Lang.FavorWallpaper_ShuffleMode}"
                           Toggled="ToggleSwitch_Shuffle_Toggled" />
 
             <!-- 后台校验/回源时的提示（数量对不上、正在补词条）；命中缓存与首次转圈时不显示。占剩余宽度，过长时省略。 -->

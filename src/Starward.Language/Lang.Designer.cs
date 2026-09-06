@@ -11115,16 +11115,16 @@ namespace Starward.Language {
         }
         
         /// <summary>
-        ///   查找类似 Shuffle 的本地化字符串。
+        ///   查找类似 Shuffle mode 的本地化字符串。
         /// </summary>
-        public static string FavorWallpaper_ShuffleOnStartup {
+        public static string FavorWallpaper_ShuffleMode {
             get {
-                return ResourceManager.GetString("FavorWallpaper_ShuffleOnStartup", resourceCulture);
+                return ResourceManager.GetString("FavorWallpaper_ShuffleMode", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   查找类似 Download some wallpapers first, then turn on shuffle. 的本地化字符串。
+        ///   查找类似 Download some wallpapers first, then turn on shuffle mode. 的本地化字符串。
         /// </summary>
         public static string FavorWallpaper_ShuffleNeedDownload {
             get {

@@ -53,6 +53,7 @@ public sealed partial class AppBackground : UserControl
         // 通过 Messenger 监听背景变更、主窗口状态变化、视频音量变化
         WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
+        WeakReferenceMessenger.Default.Register<MainWindowShownMessage>(this, OnMainWindowShown);
         WeakReferenceMessenger.Default.Register<VideoBgVolumeChangedMessage>(this, OnVideoBgVolumeChanged);
         this.Loaded += AppBackground_Loaded;
         this.Unloaded += AppBackground_Unloaded;
@@ -94,11 +95,12 @@ public sealed partial class AppBackground : UserControl
     {
         get; set
         {
-            // 必须在 InitializeBackgroundImage 之前：它直接读 bg_ / custom_bg_ 贴出第一帧，
-            // 随机结果晚一步就会先闪一下上次的壁纸。
-            if (value is not null)
+            // 随机模式：切换游戏（含启动后首次赋值）时换一张。必须在 InitializeBackgroundImage 之前：
+            // 它直接读 bg_ / custom_bg_ 贴出第一帧，随机结果晚一步就会先闪一下上次的壁纸。
+            // 只在 GameBiz 真的变了时随机，崩坏3 国际服换区服等同 biz 内的重新赋值不算「切换游戏」。
+            if (value is not null && field?.GameBiz != value.GameBiz)
             {
-                _favorWallpaperService.TryShuffleOnStartup(value.GameBiz);
+                _favorWallpaperService.TryShuffleWallpaper(value.GameBiz);
             }
             if (field is null)
             {
@@ -959,6 +961,27 @@ public sealed partial class AppBackground : UserControl
     private void OnBackgroundChanged(object _, BackgroundChangedMessage message)
     {
         _ = UpdateBackgroundAsync(message.GameBackground);
+    }
+
+
+    /// <summary>
+    /// 从系统托盘重新打开主窗口：随机模式下换一张壁纸并重绘背景。
+    /// 只有真正从隐藏状态显示才会收到本消息（见 <see cref="MainWindow.Show"/>），
+    /// 最小化恢复、Alt+Tab 回到窗口等普通激活不会换图。
+    /// </summary>
+    private void OnMainWindowShown(object _, MainWindowShownMessage message)
+    {
+        try
+        {
+            if (CurrentGameId is not null && _favorWallpaperService.TryShuffleWallpaper(CurrentGameId.GameBiz))
+            {
+                _ = UpdateBackgroundAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Shuffle wallpaper on main window shown");
+        }
     }
 
 
