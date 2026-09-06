@@ -490,6 +490,11 @@ public sealed partial class GameSelector : UserControl
     /// <param name="e"></param>
     private void Grid_GameIconsArea_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        // 拖拽区被其他内容（原神 HDR 亮度设置对话框）接管时不得覆盖，接管结束后会重新计算
+        if (ignoreDpiChanged)
+        {
+            return;
+        }
         UpdateDragRectangles();
     }
 
