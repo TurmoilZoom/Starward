@@ -160,8 +160,10 @@
 
 
                     <!--  原神  -->
+                    <!--  底部 -6：末行是 28 高的图标行盒，包住 16 高的文字行后多出 6px 留白，叠上 Flyout 自带的 17px 内边距会让下边距明显大于上/左右，故抵消  -->
                     <Grid x:Name="Grid_Genshin"
                           Grid.Row="2"
+                          Margin="0,0,0,-6"
                           x:Load="{x:Bind IsGenshinEnabled}"
                           ColumnSpacing="8"
                           Visibility="{x:Bind GenshinDailyNote, Converter={StaticResource ObjectToVisibilityConverter}}">

@@ -58,6 +58,12 @@
                         <StackPanel Spacing="16">
                             <!--  分段列表  -->
                             <ItemsControl ItemsSource="{x:Bind Sections}">
+                                <!--  间距放在 ItemsPanel 上：StackPanel.Spacing 只加在项与项之间，不会给最后一项留下尾巴  -->
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="local:TimeNodeSectionView">
                                         <StackPanel Spacing="10">
@@ -65,11 +71,15 @@
                                                        FontWeight="SemiBold"
                                                        Text="{x:Bind Title}" />
                                             <ItemsControl ItemsSource="{x:Bind Items}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="8" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="local:TimeNodeItemView">
                                                         <!--  可点击项：高亮边框 + 右箭头 + 手型光标（Loaded 中设置）  -->
-                                                        <Border Margin="0,0,0,8"
-                                                                Padding="10"
+                                                        <Border Padding="10"
                                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                                                 BorderThickness="1"
@@ -146,11 +156,12 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <!--  空态  -->
-                            <TextBlock HorizontalAlignment="Center"
+                            <!--  空态用 x:Load 而不是 Visibility：没加载的元素根本不在树里，不会给外层 StackPanel 的 Spacing 留下一段空白尾巴  -->
+                            <TextBlock x:Name="TextBlock_TimeNodeEmpty"
+                                       HorizontalAlignment="Center"
+                                       x:Load="{x:Bind IsEmpty}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       Text="{x:Bind lang:Lang.TimeNode_Empty}"
-                                       Visibility="{x:Bind IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                       Text="{x:Bind lang:Lang.TimeNode_Empty}" />
                         </StackPanel>
                     </ScrollViewer>
 

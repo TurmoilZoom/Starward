@@ -53,10 +53,15 @@
                                Text="{x:Bind lang:Lang.MapToolButton_Title}" />
 
                     <ItemsControl Grid.Row="1" ItemsSource="{x:Bind Options}">
+                        <!--  间距放在 ItemsPanel 上：StackPanel.Spacing 只加在项与项之间，不会给最后一项留下尾巴  -->
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="local:MapToolOption">
-                                <Border Margin="0,0,0,6"
-                                        Padding="10,8"
+                                <Border Padding="10,8"
                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                         BorderThickness="1"

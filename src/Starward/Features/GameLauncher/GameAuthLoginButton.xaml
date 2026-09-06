@@ -65,7 +65,9 @@
                             Command="{x:Bind InitializeGameAuthLoginCommand}"
                             Content="{x:Bind lang:Lang.GameAuthLoginButton_ReAuthenticate}"
                             Visibility="{x:Bind ErrorMessage, Converter={StaticResource ObjectToVisibilityConverter}}" />
-                    <ToggleSwitch HorizontalAlignment="Center"
+                    <!--  底部 -10：ToggleSwitch 模板自带 ToggleSwitchPostContentMargin(10) 的空行，作为末元素会让卡片下边距多出 10px  -->
+                    <ToggleSwitch Margin="0,0,0,-10"
+                                  HorizontalAlignment="Center"
                                   IsOn="{x:Bind EnableLoginAuthTicket, Mode=TwoWay}"
                                   OffContent="{x:Bind lang:Lang.GameAuthLoginButton_AuthLoginDisabled}"
                                   OnContent="{x:Bind lang:Lang.GameAuthLoginButton_AuthLoginEnabled}" />
