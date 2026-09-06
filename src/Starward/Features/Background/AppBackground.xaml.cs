@@ -43,6 +43,8 @@ public sealed partial class AppBackground : UserControl
 
     private readonly BackgroundService _backgroundService = AppConfig.GetService<BackgroundService>();
 
+    private readonly FavorWallpaperService _favorWallpaperService = AppConfig.GetService<FavorWallpaperService>();
+
 
     public AppBackground()
     {
@@ -92,6 +94,12 @@ public sealed partial class AppBackground : UserControl
     {
         get; set
         {
+            // 必须在 InitializeBackgroundImage 之前：它直接读 bg_ / custom_bg_ 贴出第一帧，
+            // 随机结果晚一步就会先闪一下上次的壁纸。
+            if (value is not null)
+            {
+                _favorWallpaperService.TryShuffleOnStartup(value.GameBiz);
+            }
             if (field is null)
             {
                 field = value;

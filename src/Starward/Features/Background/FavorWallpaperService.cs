@@ -342,6 +342,111 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
+    /// 已下载到本地 bg 目录的壁纸，即随机播放的候选。
+    /// </summary>
+    /// <param name="mindscape">true 取满影画静态壁纸，false 取好感动态壁纸。</param>
+    public IReadOnlyList<FavorWallpaperRecord> GetDownloadedWallpapers(bool mindscape)
+    {
+        return GetCachedWallpapers(mindscape).Where(IsCached).ToList();
+    }
+
+
+    /// <summary>
+    /// 随机播放候选池：按两个开关合并好感 / 满影画中已下载的壁纸。
+    /// </summary>
+    /// <param name="gameBiz">游戏业务线。</param>
+    public List<FavorWallpaperRecord> GetShufflePool(GameBiz gameBiz)
+    {
+        var pool = new List<FavorWallpaperRecord>();
+        if (AppConfig.GetFavorWallpaperShuffle(gameBiz))
+        {
+            pool.AddRange(GetDownloadedWallpapers(mindscape: false));
+        }
+        if (AppConfig.GetMindscapeWallpaperShuffle(gameBiz))
+        {
+            pool.AddRange(GetDownloadedWallpapers(mindscape: true));
+        }
+        return pool;
+    }
+
+
+    /// <summary>
+    /// 从候选池里随机挑一张已下载的壁纸设为当前自定义背景。不联网、不下载。
+    /// </summary>
+    /// <param name="gameBiz">游戏业务线。</param>
+    /// <returns>选中的背景文件名；候选不足（无已下载壁纸，或只有当前这一张）时为 null。</returns>
+    public string? ApplyRandomWallpaper(GameBiz gameBiz)
+    {
+        List<string> names = GetShufflePool(gameBiz)
+            .Select(GetCacheFileName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (names.Count == 0)
+        {
+            return null;
+        }
+        // 多于一张时排除当前这张，避免「随机」之后画面没变。
+        string? current = AppConfig.GetCustomBg(gameBiz);
+        List<string> candidates = names.Count > 1
+            ? names.Where(x => !string.Equals(x, current, StringComparison.OrdinalIgnoreCase)).ToList()
+            : names;
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+        string picked = candidates[Random.Shared.Next(candidates.Count)];
+        // 与 SetAsCustomBackgroundAsync 同样三连：bg_ 不跟着改的话，
+        // GetSuggestedGameBackgroundAsync 会认为自定义背景已过期而回落到官方背景。
+        AppConfig.SetCustomBg(gameBiz, picked);
+        AppConfig.SetEnableCustomBg(gameBiz, true);
+        AppConfig.SetBg(gameBiz, picked);
+        _logger.LogInformation("Random wallpaper {Name} applied for {GameBiz}", picked, gameBiz);
+        return picked;
+    }
+
+
+    /// <summary>
+    /// 软件启动后首次显示该游戏背景时随机一张壁纸。每个进程每个游戏只随机一次，
+    /// 从托盘恢复主窗口、来回切换游戏都不会再换（issue #15）。
+    /// </summary>
+    /// <param name="gameBiz">游戏业务线。</param>
+    /// <returns>是否真的换了背景。</returns>
+    public bool TryShuffleOnStartup(GameBiz gameBiz)
+    {
+        try
+        {
+            if (!IsSupported(gameBiz))
+            {
+                return false;
+            }
+            lock (_shuffledBizs)
+            {
+                if (!_shuffledBizs.Add(gameBiz))
+                {
+                    return false;
+                }
+            }
+            // 用户已经切回官方背景，不越俎代庖把自定义背景重新打开。
+            if (!AppConfig.GetEnableCustomBg(gameBiz))
+            {
+                return false;
+            }
+            return ApplyRandomWallpaper(gameBiz) is not null;
+        }
+        catch (Exception ex)
+        {
+            // 随机失败不能影响背景初始化。
+            _logger.LogWarning(ex, "Shuffle wallpaper on startup failed for {GameBiz}", gameBiz);
+            return false;
+        }
+    }
+
+
+    /// <summary>本进程内已随机过背景的游戏。</summary>
+    private static readonly HashSet<GameBiz> _shuffledBizs = [];
+
+
+    /// <summary>
     /// 由媒体 URL 得到缓存文件名（与官方背景相同，落在 CacheFolder/bg）。
     /// </summary>
     public static string GetCacheFileName(FavorWallpaperRecord item)

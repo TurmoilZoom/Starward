@@ -3748,6 +3748,12 @@
   <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
     <value>マインドスケープ壁紙</value>
   </data>
+  <data name="FavorWallpaper_ShuffleOnStartup" xml:space="preserve">
+    <value>ランダム再生</value>
+  </data>
+  <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
+    <value>先に壁紙をダウンロードしてから、ランダム再生をオンにしてください。</value>
+  </data>
   <data name="SettingPage_StartAtLogin" xml:space="preserve">
     <value>サインイン時に起動</value>
   </data>

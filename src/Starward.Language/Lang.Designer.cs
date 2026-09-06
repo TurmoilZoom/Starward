@@ -11113,6 +11113,24 @@ namespace Starward.Language {
                 return ResourceManager.GetString("FavorWallpaper_MindscapeTitle", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   查找类似 Shuffle 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleOnStartup {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleOnStartup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download some wallpapers first, then turn on shuffle. 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleNeedDownload {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleNeedDownload", resourceCulture);
+            }
+        }
 
         public static string SettingPage_ManageElevatedStartGameTasks {
             get {

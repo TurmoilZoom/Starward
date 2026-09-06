@@ -3807,6 +3807,12 @@
   <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
     <value>满影画壁纸</value>
   </data>
+  <data name="FavorWallpaper_ShuffleOnStartup" xml:space="preserve">
+    <value>随机播放</value>
+  </data>
+  <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
+    <value>请先下载壁纸，再开启随机播放。</value>
+  </data>
   <data name="SettingPage_StartAtLogin" xml:space="preserve">
     <value>开机时自动启动</value>
   </data>

@@ -638,6 +638,42 @@ public static partial class AppConfig
 
 
     /// <summary>
+    /// 好感壁纸随机播放：软件启动后首次显示该游戏背景时，从已下载的好感壁纸中随机挑一张。
+    /// </summary>
+    public static bool GetFavorWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>
+    /// 设置好感壁纸随机播放开关。
+    /// </summary>
+    public static void SetFavorWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>
+    /// 满影画壁纸随机播放：与好感壁纸互相独立，两者都开启时在两类已下载壁纸中一起随机。
+    /// </summary>
+    public static bool GetMindscapeWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"mindscape_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>
+    /// 设置满影画壁纸随机播放开关。
+    /// </summary>
+    public static void SetMindscapeWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"mindscape_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>
     /// 每日自动签到（软件启动后静默批量签到），按游戏区分，默认关闭。
     /// </summary>
     /// <param name="biz">游戏业务线，如 hk4e_cn。</param>
