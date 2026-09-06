@@ -126,7 +126,7 @@ public sealed partial class FavorWallpaperDialog : ContentDialog
 
 
     /// <summary>
-    /// 当前模式（好感 / 满影画）是否已开启随机模式。两者互相独立，都开启时在两类壁纸中一起随机。
+    /// 当前模式（好感 / 满影画）是否已开启随机模式。两者互相独立，各自只在本类别的壁纸中随机。
     /// </summary>
     private bool IsShuffleEnabled => IsMindscapeMode
         ? AppConfig.GetMindscapeWallpaperShuffle(CurrentGameBiz)

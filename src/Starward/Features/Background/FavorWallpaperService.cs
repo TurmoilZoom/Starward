@@ -352,21 +352,59 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
-    /// 随机模式候选池：按两个开关合并好感 / 满影画中已下载的壁纸。
+    /// 随机模式候选池：好感与满影画互不混用，只取「当前背景所属类别」中已下载的壁纸。
     /// </summary>
     /// <param name="gameBiz">游戏业务线。</param>
+    /// <returns>该类别已下载的壁纸；该类别未开随机模式时为空。</returns>
     public List<FavorWallpaperRecord> GetShufflePool(GameBiz gameBiz)
     {
-        var pool = new List<FavorWallpaperRecord>();
-        if (AppConfig.GetFavorWallpaperShuffle(gameBiz))
+        bool favorShuffle = AppConfig.GetFavorWallpaperShuffle(gameBiz);
+        bool mindscapeShuffle = AppConfig.GetMindscapeWallpaperShuffle(gameBiz);
+        if (!favorShuffle && !mindscapeShuffle)
         {
-            pool.AddRange(GetDownloadedWallpapers(mindscape: false));
+            // 快路径：两个开关都没开时不去读缓存 JSON。
+            return [];
         }
-        if (AppConfig.GetMindscapeWallpaperShuffle(gameBiz))
+        bool mindscape = GetShuffleCategory(gameBiz);
+        if (mindscape ? !mindscapeShuffle : !favorShuffle)
         {
-            pool.AddRange(GetDownloadedWallpapers(mindscape: true));
+            // 当前背景属于另一类，而那一类没开随机——不跨类别换图。
+            return [];
         }
-        return pool;
+        return GetDownloadedWallpapers(mindscape).ToList();
+    }
+
+
+    /// <summary>
+    /// 判断随机应当落在哪一类：以当前自定义背景所属类别为准；
+    /// 背景不是这两类壁纸（用户自备图片、尚未设置等）时，取对话框上次所处的模式。
+    /// </summary>
+    /// <param name="gameBiz">游戏业务线。</param>
+    /// <returns>true 为满影画静态壁纸，false 为好感动态壁纸。</returns>
+    private bool GetShuffleCategory(GameBiz gameBiz)
+    {
+        string? current = AppConfig.GetCustomBg(gameBiz);
+        if (!string.IsNullOrWhiteSpace(current))
+        {
+            if (ContainsCacheFile(GetCachedWallpapers(mindscape: false), current))
+            {
+                return false;
+            }
+            if (ContainsCacheFile(GetCachedWallpapers(mindscape: true), current))
+            {
+                return true;
+            }
+        }
+        return AppConfig.GetFavorWallpaperMindscapeMode(gameBiz);
+    }
+
+
+    /// <summary>
+    /// 壁纸列表中是否有某个缓存文件名对应的条目。
+    /// </summary>
+    private static bool ContainsCacheFile(IReadOnlyList<FavorWallpaperRecord> items, string fileName)
+    {
+        return items.Any(x => string.Equals(GetCacheFileName(x), fileName, StringComparison.OrdinalIgnoreCase));
     }
 
 
@@ -406,8 +444,9 @@ internal partial class FavorWallpaperService
 
 
     /// <summary>
-    /// 随机模式下换一张壁纸。调用点即「重新看到背景」的时机：软件启动、切换游戏、从托盘打开主窗口
-    /// （issue #15）。未开启随机模式、非绝区零、已切回官方背景时原样返回，不产生任何副作用。
+    /// 随机模式下换一张壁纸，换出的与当前背景同类（好感 / 满影画）。调用点即「重新看到背景」的时机：
+    /// 软件启动、切换游戏、从托盘打开主窗口（issue #15）。未开启随机模式、非绝区零、已切回官方背景时
+    /// 原样返回，不产生任何副作用。
     /// </summary>
     /// <param name="gameBiz">游戏业务线。</param>
     /// <returns>是否真的换了背景。</returns>
